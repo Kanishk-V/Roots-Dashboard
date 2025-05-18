@@ -44,6 +44,25 @@ const formatNumber = (value: number) => {
   return new Intl.NumberFormat('en-US').format(value);
 };
 
+// Pie chart color palette
+const PIE_GREENS = [
+  '#D1FF4C', // bright lime
+  '#A3E635', // vivid green
+  '#65C466', // medium green
+  '#3CA86B', // darker green
+  '#1B5E20', // deep green
+];
+
+// Pie chart color palette for Assumable Loan Distribution
+const ASSUMABLE_PIE_COLORS = [
+  '#D1FF4C', // primary green
+  '#e6ffb3',    // light green as secondary
+  '#A3E635', // vivid green
+  '#65C466', // medium green
+  '#3CA86B', // darker green
+  '#1B5E20', // deep green
+];
+
 export default function DashboardClient() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboardData'],
@@ -88,56 +107,64 @@ export default function DashboardClient() {
       <Heading mb={6}>Listings Dashboard</Heading>
       
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
-        <Card>
+        <Card bg="#D1FF4C" border="3px solid #000" borderRadius="18px" boxShadow="none" p={6}>
           <CardBody>
             <Stack>
-              <Text fontSize="sm" color="gray.600">Total Listings</Text>
-              <Text fontSize="2xl" fontWeight="bold">{formatNumber(dashboardData.totalListings)}</Text>
+              <Text fontSize="sm" color="#000" fontWeight="bold">Total Listings</Text>
+              <Text fontSize="3xl" fontWeight="extrabold" color="#000">
+                {formatNumber(dashboardData.totalListings)}
+              </Text>
             </Stack>
           </CardBody>
         </Card>
         
-        <Card>
+        <Card bg="#fff" border="3px solid #000" borderRadius="18px" boxShadow="none" p={6}>
           <CardBody>
             <Stack>
-              <Text fontSize="sm" color="gray.600">Average Price</Text>
-              <Text fontSize="2xl" fontWeight="bold">{formatCurrency(dashboardData.metrics.averagePrice)}</Text>
+              <Text fontSize="sm" color="#000" fontWeight="bold">Average Price</Text>
+              <Text fontSize="3xl" fontWeight="extrabold" color="#000">
+                {formatCurrency(dashboardData.metrics.averagePrice)}
+              </Text>
             </Stack>
           </CardBody>
         </Card>
 
-        <Card>
+        <Card bg="#D1FF4C" border="3px solid #000" borderRadius="18px" boxShadow="none" p={6}>
           <CardBody>
             <Stack>
-              <Text fontSize="sm" color="gray.600">Avg Days on Market</Text>
-              <Text fontSize="2xl" fontWeight="bold">{formatNumber(dashboardData.metrics.averageDaysOnMarket)} days</Text>
+              <Text fontSize="sm" color="#000" fontWeight="bold">Avg Days on Market</Text>
+              <Text fontSize="3xl" fontWeight="extrabold" color="#000">
+                {formatNumber(dashboardData.metrics.averageDaysOnMarket)} days
+              </Text>
             </Stack>
           </CardBody>
         </Card>
 
-        <Card>
+        <Card bg="#fff" border="3px solid #000" borderRadius="18px" boxShadow="none" p={6}>
           <CardBody>
             <Stack>
-              <Text fontSize="sm" color="gray.600">New Listings (30d)</Text>
-              <Text fontSize="2xl" fontWeight="bold">{formatNumber(dashboardData.metrics.totalNewListingsLast30Days)}</Text>
+              <Text fontSize="sm" color="#000" fontWeight="bold">New Listings (30d)</Text>
+              <Text fontSize="3xl" fontWeight="extrabold" color="#000">
+                {formatNumber(dashboardData.metrics.totalNewListingsLast30Days)}
+              </Text>
             </Stack>
           </CardBody>
         </Card>
       </SimpleGrid>
 
-      <Tabs>
-        <TabList>
-          <Tab>Overview</Tab>
-          <Tab>Trends</Tab>
-          <Tab>Mortgage Analytics</Tab>
-          <Tab>Listing Lifecycle</Tab>
+      <Tabs variant="unstyled">
+        <TabList mb={4}>
+          <Tab _selected={{ bg: '#D1FF4C', color: '#000', border: '3px solid #000', borderRadius: '12px' }} fontWeight="bold" fontSize="lg">Overview</Tab>
+          <Tab _selected={{ bg: '#D1FF4C', color: '#000', border: '3px solid #000', borderRadius: '12px' }} fontWeight="bold" fontSize="lg">Trends</Tab>
+          <Tab _selected={{ bg: '#D1FF4C', color: '#000', border: '3px solid #000', borderRadius: '12px' }} fontWeight="bold" fontSize="lg">Mortgage Analytics</Tab>
+          <Tab _selected={{ bg: '#D1FF4C', color: '#000', border: '3px solid #000', borderRadius: '12px' }} fontWeight="bold" fontSize="lg">Listing Lifecycle</Tab>
         </TabList>
 
         <TabPanels>
           <TabPanel>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Assumable Loan Distribution</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Assumable Loan Distribution</Heading>
                 <Box height="300px">
                   <Pie
                     data={{
@@ -145,17 +172,9 @@ export default function DashboardClient() {
                       datasets: [
                         {
                           data: dashboardData.assumableListings.values,
-                          backgroundColor: [
-                            'rgba(255, 99, 132, 0.2)',
-                            'rgba(54, 162, 235, 0.2)',
-                            'rgba(255, 206, 86, 0.2)',
-                          ],
-                          borderColor: [
-                            'rgba(255, 99, 132, 1)',
-                            'rgba(54, 162, 235, 1)',
-                            'rgba(255, 206, 86, 1)',
-                          ],
-                          borderWidth: 1,
+                          backgroundColor: ASSUMABLE_PIE_COLORS.slice(0, dashboardData.assumableListings.labels.length),
+                          borderColor: '#000',
+                          borderWidth: 3,
                         },
                       ],
                     }}
@@ -165,6 +184,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                     }}
@@ -172,8 +192,8 @@ export default function DashboardClient() {
                 </Box>
               </Box>
 
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Price Distribution</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Price Distribution</Heading>
                 <Box height="300px">
                   <Bar
                     data={{
@@ -182,9 +202,9 @@ export default function DashboardClient() {
                         {
                           label: 'Number of Listings',
                           data: dashboardData.priceDistribution.values,
-                          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                          borderColor: 'rgba(75, 192, 192, 1)',
-                          borderWidth: 1,
+                          backgroundColor: '#D1FF4C',
+                          borderColor: '#000',
+                          borderWidth: 3,
                         },
                       ],
                     }}
@@ -194,6 +214,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                       scales: {
@@ -201,14 +222,20 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Number of Listings'
-                          }
+                            text: 'Number of Listings',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         },
                         x: {
                           title: {
                             display: true,
-                            text: 'Price Range'
-                          }
+                            text: 'Price Range',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         }
                       }
                     }}
@@ -220,8 +247,8 @@ export default function DashboardClient() {
 
           <TabPanel>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Monthly New Listings (12 Months)</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Monthly New Listings (12 Months)</Heading>
                 <Box height="300px">
                   <Line
                     data={{
@@ -230,7 +257,9 @@ export default function DashboardClient() {
                         {
                           label: 'New Listings',
                           data: dashboardData.listingTrends.monthly.values,
-                          borderColor: 'rgb(75, 192, 192)',
+                          borderColor: '#000',
+                          backgroundColor: '#D1FF4C',
+                          borderWidth: 3,
                           tension: 0.1,
                         },
                       ],
@@ -241,6 +270,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                       scales: {
@@ -248,14 +278,20 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Number of Listings'
-                          }
+                            text: 'Number of Listings',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         },
                         x: {
                           title: {
                             display: true,
-                            text: 'Month'
-                          }
+                            text: 'Month',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         }
                       }
                     }}
@@ -263,8 +299,8 @@ export default function DashboardClient() {
                 </Box>
               </Box>
 
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Weekly Trends (90 Days)</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Weekly Trends (90 Days)</Heading>
                 <Box height="300px">
                   <Line
                     data={{
@@ -273,7 +309,9 @@ export default function DashboardClient() {
                         {
                           label: 'New Listings',
                           data: dashboardData.listingTrends.weekly.values,
-                          borderColor: 'rgb(153, 102, 255)',
+                          borderColor: '#000',
+                          backgroundColor: '#D1FF4C',
+                          borderWidth: 3,
                           tension: 0.1,
                         },
                       ],
@@ -284,6 +322,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                       scales: {
@@ -291,14 +330,20 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Number of Listings'
-                          }
+                            text: 'Number of Listings',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         },
                         x: {
                           title: {
                             display: true,
-                            text: 'Week'
-                          }
+                            text: 'Week',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         }
                       }
                     }}
@@ -310,8 +355,8 @@ export default function DashboardClient() {
 
           <TabPanel>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Mortgage Age Distribution</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Mortgage Age Distribution</Heading>
                 <Box height="300px">
                   <Bar
                     data={{
@@ -320,9 +365,9 @@ export default function DashboardClient() {
                         {
                           label: 'Number of Mortgages',
                           data: dashboardData.mortgageAnalytics.ageDistribution.values,
-                          backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                          borderColor: 'rgba(255, 159, 64, 1)',
-                          borderWidth: 1,
+                          backgroundColor: '#D1FF4C',
+                          borderColor: '#000',
+                          borderWidth: 3,
                         },
                       ],
                     }}
@@ -332,6 +377,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                       scales: {
@@ -339,8 +385,11 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Number of Mortgages'
-                          }
+                            text: 'Number of Mortgages',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         }
                       }
                     }}
@@ -348,8 +397,8 @@ export default function DashboardClient() {
                 </Box>
               </Box>
 
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Balance Distribution</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Balance Distribution</Heading>
                 <Box height="300px">
                   <Bar
                     data={{
@@ -358,9 +407,9 @@ export default function DashboardClient() {
                         {
                           label: 'Number of Mortgages',
                           data: dashboardData.mortgageAnalytics.balanceDistribution.values,
-                          backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                          borderColor: 'rgba(153, 102, 255, 1)',
-                          borderWidth: 1,
+                          backgroundColor: '#D1FF4C',
+                          borderColor: '#000',
+                          borderWidth: 3,
                         },
                       ],
                     }}
@@ -370,6 +419,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                       scales: {
@@ -377,8 +427,11 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Number of Mortgages'
-                          }
+                            text: 'Number of Mortgages',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         }
                       }
                     }}
@@ -390,8 +443,8 @@ export default function DashboardClient() {
 
           <TabPanel>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Status Distribution</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Status Distribution</Heading>
                 <Box height="300px">
                   <Pie
                     data={{
@@ -411,7 +464,7 @@ export default function DashboardClient() {
                             'rgba(255, 206, 86, 1)',
                             'rgba(75, 192, 192, 1)',
                           ],
-                          borderWidth: 1,
+                          borderWidth: 3,
                         },
                       ],
                     }}
@@ -421,6 +474,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                     }}
@@ -428,8 +482,8 @@ export default function DashboardClient() {
                 </Box>
               </Box>
 
-              <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Days on Market by Type</Heading>
+              <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Days on Market by Type</Heading>
                 <Box height="300px">
                   <Bar
                     data={{
@@ -438,9 +492,9 @@ export default function DashboardClient() {
                         {
                           label: 'Average Days on Market',
                           data: dashboardData.listingLifecycle.daysOnMarketByType.values,
-                          backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                          borderColor: 'rgba(255, 159, 64, 1)',
-                          borderWidth: 1,
+                          backgroundColor: '#D1FF4C',
+                          borderColor: '#000',
+                          borderWidth: 3,
                         },
                       ],
                     }}
@@ -450,6 +504,7 @@ export default function DashboardClient() {
                       plugins: {
                         legend: {
                           position: 'top' as const,
+                          labels: { color: '#000', font: { weight: 'bold', size: 16 } }
                         },
                       },
                       scales: {
@@ -457,8 +512,11 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Days'
-                          }
+                            text: 'Days',
+                            color: '#000',
+                            font: { weight: 'bold', size: 16 }
+                          },
+                          ticks: { color: '#000', font: { weight: 'bold' } }
                         }
                       }
                     }}
