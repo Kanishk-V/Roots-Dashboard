@@ -221,15 +221,15 @@ export default function DashboardClient() {
           <TabPanel>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
               <Box p={4} borderRadius="lg" boxShadow="sm" bg="white" mb={6}>
-                <Heading size="md" mb={4}>Daily New Listings (30 Days)</Heading>
+                <Heading size="md" mb={4}>Monthly New Listings (12 Months)</Heading>
                 <Box height="300px">
                   <Line
                     data={{
-                      labels: dashboardData.listingTrends.daily.dates,
+                      labels: dashboardData.listingTrends.monthly.dates,
                       datasets: [
                         {
                           label: 'New Listings',
-                          data: dashboardData.listingTrends.daily.values,
+                          data: dashboardData.listingTrends.monthly.values,
                           borderColor: 'rgb(75, 192, 192)',
                           tension: 0.1,
                         },
@@ -254,7 +254,7 @@ export default function DashboardClient() {
                         x: {
                           title: {
                             display: true,
-                            text: 'Date'
+                            text: 'Month'
                           }
                         }
                       }

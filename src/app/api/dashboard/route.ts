@@ -7,8 +7,8 @@ export async function GET() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Get basic metrics and listings with their history
-    const [totalActive, avgPrice, recentMetrics, assumableMortgages, listingsWithHistory] = await Promise.all([
+    // Get basic metrics
+    const [totalActive, avgPrice, recentMetrics, assumableMortgages, activeListings] = await Promise.all([
       prisma.listing.count({
         where: { status: ListingStatus.ACTIVE }
       }),
@@ -36,33 +36,27 @@ export async function GET() {
           createdAt: true,
           lastStatusChange: true,
           updatedAt: true,
-          denormalizedAssumableLoanType: true,
-          listingHistory: {
-            select: {
-              status: true,
-              createdAt: true
-            },
-            orderBy: { createdAt: 'asc' }
-          }
+          denormalizedAssumableLoanType: true
         }
       })
     ]);
 
     // Calculate average days on market
     const now = new Date();
-    const daysOnMarketList = listingsWithHistory.map(listing => {
+    const daysOnMarketList = activeListings.map(listing => {
       const startDate = listing.createdAt;
-      const endDate = listing.lastStatusChange || now;
-      return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      let endDate = listing.lastStatusChange || now;
+      if (endDate < startDate) endDate = now; // safeguard
+      return Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
     });
     const averageDaysOnMarket = Math.round(
       daysOnMarketList.reduce((sum, days) => sum + days, 0) / daysOnMarketList.length
     );
 
     // Calculate average update frequency
-    const updateFrequencies = listingsWithHistory.map(listing => {
-      const updates = listing.listingHistory.length;
+    const updateFrequencies = activeListings.map(listing => {
       const daysActive = Math.max(1, Math.floor((now.getTime() - listing.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+      const updates = Math.floor((now.getTime() - listing.updatedAt.getTime()) / (1000 * 60 * 60 * 24));
       return updates / daysActive;
     });
     const averageUpdateFrequency = Math.round(
@@ -110,18 +104,18 @@ export async function GET() {
 
     // Get time series data
     const timeSeriesPromises = {
-      daily: prisma.listing.groupBy({
-        by: ['createdAt'],
-        where: {
-          createdAt: { gte: thirtyDaysAgo }
-        },
-        _count: true,
-        orderBy: { createdAt: 'asc' }
-      }),
       weekly: prisma.listing.groupBy({
         by: ['createdAt'],
         where: {
           createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+        },
+        _count: true,
+        orderBy: { createdAt: 'asc' }
+      }),
+      monthly: prisma.listing.groupBy({
+        by: ['createdAt'],
+        where: {
+          createdAt: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
         },
         _count: true,
         orderBy: { createdAt: 'asc' }
@@ -139,14 +133,42 @@ export async function GET() {
       timeSeries
     ] = await Promise.all([
       Promise.all(priceDistributionPromises),
-      Promise.all(Object.values(timeSeriesPromises))
+      Promise.all([timeSeriesPromises.weekly, timeSeriesPromises.monthly])
     ]);
 
     // Process time series data
-    const processTimeSeries = (data: any[], interval: 'daily' | 'weekly') => {
+    const processTimeSeries = (data: any[] | undefined, interval: 'weekly' | 'monthly') => {
+      if (!data || data.length === 0) {
+        return { dates: [], values: [] };
+      }
+
+      const groupedData = new Map();
+      
+      data.forEach(item => {
+        const date = new Date(item.createdAt);
+        let key: string;
+        
+        if (interval === 'weekly') {
+          // Get the start of the week (Sunday)
+          const day = date.getDay();
+          const diff = date.getDate() - day;
+          const startOfWeek = new Date(date.setDate(diff));
+          key = startOfWeek.toISOString().split('T')[0];
+        } else {
+          // Get the start of the month
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+        
+        const currentCount = groupedData.get(key) || 0;
+        groupedData.set(key, currentCount + item._count);
+      });
+
+      // Sort by date
+      const sortedEntries = Array.from(groupedData.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
       return {
-        dates: data.map(d => d.createdAt.toISOString().split('T')[0]),
-        values: data.map(d => d._count)
+        dates: sortedEntries.map(([date]) => date),
+        values: sortedEntries.map(([, count]) => count)
       };
     };
 
@@ -210,7 +232,7 @@ export async function GET() {
       '90+ days': 0
     };
 
-    listingsWithHistory.forEach(listing => {
+    activeListings.forEach(listing => {
       const days = Math.floor((now.getTime() - listing.createdAt.getTime()) / (1000 * 60 * 60 * 24));
       if (days <= 30) daysOnMarketByType['0-30 days']++;
       else if (days <= 60) daysOnMarketByType['30-60 days']++;
@@ -226,9 +248,9 @@ export async function GET() {
       'Quarterly': 0
     };
 
-    listingsWithHistory.forEach(listing => {
-      const updates = listing.listingHistory.length;
+    activeListings.forEach(listing => {
       const daysActive = Math.max(1, Math.floor((now.getTime() - listing.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+      const updates = Math.floor((now.getTime() - listing.updatedAt.getTime()) / (1000 * 60 * 60 * 24));
       const frequency = updates / daysActive;
       
       if (frequency >= 1) updateFrequencyRanges['Daily']++;
@@ -255,12 +277,8 @@ export async function GET() {
           values: priceDistributionCounts,
         },
         listingTrends: {
-          daily: processTimeSeries(timeSeries[0], 'daily'),
-          weekly: processTimeSeries(timeSeries[1], 'weekly'),
-          monthly: {
-            dates: [],
-            values: []
-          }
+          weekly: processTimeSeries(timeSeries[0], 'weekly'),
+          monthly: processTimeSeries(timeSeries[1], 'monthly')
         },
         mortgageAnalytics: {
           ageDistribution: {
