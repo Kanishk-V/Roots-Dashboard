@@ -483,14 +483,14 @@ export default function DashboardClient() {
               </Box>
 
               <Box p={4} borderRadius="18px" border="3px solid #000" boxShadow="none" bg="#fff" mb={6}>
-                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Days on Market by Type</Heading>
+                <Heading size="md" mb={4} color="#000" fontWeight="extrabold">Days on Market Distribution</Heading>
                 <Box height="300px">
                   <Bar
                     data={{
                       labels: dashboardData.listingLifecycle.daysOnMarketByType.labels,
                       datasets: [
                         {
-                          label: 'Average Days on Market',
+                          label: 'Number of Listings',
                           data: dashboardData.listingLifecycle.daysOnMarketByType.values,
                           backgroundColor: '#D1FF4C',
                           borderColor: '#000',
@@ -512,7 +512,7 @@ export default function DashboardClient() {
                           beginAtZero: true,
                           title: {
                             display: true,
-                            text: 'Days',
+                            text: 'Number of Listings',
                             color: '#000',
                             font: { weight: 'bold', size: 16 }
                           },
