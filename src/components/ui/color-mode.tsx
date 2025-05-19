@@ -3,12 +3,13 @@
 import { IconButton, Box, Skeleton, Button } from "@chakra-ui/react"
 import type { IconButtonProps } from "@chakra-ui/react"
 import { ThemeProvider, useTheme } from "next-themes"
-import type { ThemeProviderProps } from "next-themes"
+// import type { ThemeProviderProps } from "next-themes" // Removed: not exported by next-themes
 import * as React from "react"
 import { LuMoon, LuSun } from "react-icons/lu"
-import { MoonIcon, SunIcon } from '@chakra-ui/icons'
+// import { MoonIcon, SunIcon } from '@chakra-ui/icons' // Removed: not installed or needed
 
-export interface ColorModeProviderProps extends ThemeProviderProps {}
+// Removed extension of ThemeProviderProps, as it's not exported by next-themes
+export interface ColorModeProviderProps {}
 
 export function ColorModeProvider(props: ColorModeProviderProps) {
   return (
@@ -97,12 +98,12 @@ export const DarkMode = React.forwardRef<HTMLDivElement>(
   },
 )
 
+// Use LuMoon/LuSun icons instead of Chakra UI icons for toggle button
 export function ColorModeToggle() {
   const { colorMode, toggleColorMode } = useColorMode();
-  
   return (
     <Button onClick={toggleColorMode} size="sm">
-      {colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
+      {colorMode === 'light' ? <LuMoon /> : <LuSun />}
     </Button>
   );
 }

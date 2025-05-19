@@ -2,26 +2,59 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { ListingStatus } from '@prisma/client';
 
+/**
+ * Time series data point interface
+ */
+interface TimeSeriesDataPoint {
+  createdAt: Date;
+  _count: number;
+}
+
+/**
+ * Processed time series data interface
+ */
+interface ProcessedTimeSeries {
+  dates: string[];
+  values: number[];
+}
+
+/**
+ * Dashboard API Route
+ * 
+ * Provides comprehensive real estate market analytics including:
+ * - Basic metrics (total listings, average price, recent activity)
+ * - Assumable mortgage analytics
+ * - Price distribution analysis
+ * - Weekly and Monthly trends
+ * - Listing lifecycle metrics
+ * 
+ * @returns {Promise<NextResponse>} JSON response containing dashboard data
+ * @throws {Error} If database queries fail
+ */
 export async function GET() {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Get basic metrics
+    // Fetch core metrics in parallel for better performance
     const [totalActive, avgPrice, recentMetrics, assumableMortgages, activeListings] = await Promise.all([
+      // Total active listings count
       prisma.listing.count({
         where: { status: ListingStatus.ACTIVE }
       }),
+      // Average price of active listings
       prisma.listing.aggregate({
         where: { status: ListingStatus.ACTIVE },
         _avg: { price: true }
       }),
+      // New listings in last 30 days
       prisma.listing.count({
         where: {
           createdAt: { gte: thirtyDaysAgo },
           status: ListingStatus.ACTIVE
         }
       }),
+      // Assumable mortgage details for analytics
       prisma.assumableMortgage.findMany({
         select: {
           currentBalance: true,
@@ -30,6 +63,7 @@ export async function GET() {
           remainingTerm: true
         }
       }),
+      // Active listing details for lifecycle analysis
       prisma.listing.findMany({
         where: { status: ListingStatus.ACTIVE },
         select: {
@@ -41,19 +75,20 @@ export async function GET() {
       })
     ]);
 
-    // Calculate average days on market
+    // Calculate average days on market with safeguards against invalid dates
     const now = new Date();
     const daysOnMarketList = activeListings.map(listing => {
       const startDate = listing.createdAt;
       let endDate = listing.lastStatusChange || now;
-      if (endDate < startDate) endDate = now; // safeguard
+      // Prevent negative days on market due to data inconsistencies
+      if (endDate < startDate) endDate = now;
       return Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
     });
     const averageDaysOnMarket = Math.round(
       daysOnMarketList.reduce((sum, days) => sum + days, 0) / daysOnMarketList.length
     );
 
-    // Calculate average update frequency
+    // Calculate listing update frequency (updates per day)
     const updateFrequencies = activeListings.map(listing => {
       const daysActive = Math.max(1, Math.floor((now.getTime() - listing.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
       const updates = Math.floor((now.getTime() - listing.updatedAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -63,7 +98,7 @@ export async function GET() {
       updateFrequencies.reduce((sum, freq) => sum + freq, 0) / updateFrequencies.length
     );
 
-    // Get loan type distribution
+    // Get top 3 loan type distribution for active listings
     const loanDistribution = await prisma.listing.groupBy({
       by: ['denormalizedAssumableLoanType'],
       where: { 
@@ -81,7 +116,7 @@ export async function GET() {
       take: 3
     });
 
-    // Get price distribution
+    // Define price ranges for distribution analysis
     const priceRanges = [
       { min: 0, max: 250000, label: '0-250k' },
       { min: 250000, max: 500000, label: '250k-500k' },
@@ -90,6 +125,7 @@ export async function GET() {
       { min: 1000000, max: null, label: '1M+' }
     ];
 
+    // Count listings in each price range
     const priceDistributionPromises = priceRanges.map(range => 
       prisma.listing.count({
         where: {
@@ -102,12 +138,12 @@ export async function GET() {
       })
     );
 
-    // Get time series data
+    // Get time series data for trend analysis
     const timeSeriesPromises = {
       weekly: prisma.listing.groupBy({
         by: ['createdAt'],
         where: {
-          createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+          createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } // Last 90 days
         },
         _count: true,
         orderBy: { createdAt: 'asc' }
@@ -115,19 +151,20 @@ export async function GET() {
       monthly: prisma.listing.groupBy({
         by: ['createdAt'],
         where: {
-          createdAt: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
+          createdAt: { gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) } // Last year
         },
         _count: true,
         orderBy: { createdAt: 'asc' }
       })
     };
 
-    // Get status distribution
+    // Get overall status distribution
     const statusDistribution = await prisma.listing.groupBy({
       by: ['status'],
       _count: true
     });
 
+    // Execute all remaining promises in parallel
     const [
       priceDistributionCounts,
       timeSeries
@@ -136,26 +173,31 @@ export async function GET() {
       Promise.all([timeSeriesPromises.weekly, timeSeriesPromises.monthly])
     ]);
 
-    // Process time series data
-    const processTimeSeries = (data: any[] | undefined, interval: 'weekly' | 'monthly') => {
+    /**
+     * Process time series data into grouped intervals
+     * @param {TimeSeriesDataPoint[] | undefined} data - Raw time series data
+     * @param {'weekly'|'monthly'} interval - Grouping interval
+     * @returns {ProcessedTimeSeries} Processed data with dates and values
+     */
+    const processTimeSeries = (data: TimeSeriesDataPoint[] | undefined, interval: 'weekly' | 'monthly'): ProcessedTimeSeries => {
       if (!data || data.length === 0) {
         return { dates: [], values: [] };
       }
 
-      const groupedData = new Map();
+      const groupedData = new Map<string, number>();
       
       data.forEach(item => {
         const date = new Date(item.createdAt);
         let key: string;
         
         if (interval === 'weekly') {
-          // Get the start of the week (Sunday)
+          // Group by week starting Sunday
           const day = date.getDay();
           const diff = date.getDate() - day;
           const startOfWeek = new Date(date.setDate(diff));
           key = startOfWeek.toISOString().split('T')[0];
         } else {
-          // Get the start of the month
+          // Group by month
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
         
@@ -163,7 +205,7 @@ export async function GET() {
         groupedData.set(key, currentCount + item._count);
       });
 
-      // Sort by date
+      // Sort entries chronologically
       const sortedEntries = Array.from(groupedData.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
       return {
@@ -172,7 +214,7 @@ export async function GET() {
       };
     };
 
-    // Calculate mortgage age distribution
+    // Calculate mortgage age distribution in 5-year intervals
     const mortgageAgeDistribution = {
       '0-5 years': 0,
       '5-10 years': 0,
@@ -190,24 +232,48 @@ export async function GET() {
       else mortgageAgeDistribution['20+ years']++;
     });
 
-    // Calculate balance distribution
-    const balanceDistribution = {
+    // Calculate mortgage balance distribution
+    type BalanceDistribution = {
+      '0-100k': number;
+      '100k-250k': number;
+      '250k-500k': number;
+      '500k+': number;
+    };
+
+    const balanceDistribution: BalanceDistribution = {
       '0-100k': 0,
       '100k-250k': 0,
       '250k-500k': 0,
       '500k+': 0
     };
 
+    /**
+     * Categorize mortgage balances into predefined ranges
+     * @param {number} balance - Current mortgage balance
+     * @returns {keyof BalanceDistribution} Category label
+     */
+    const categorizeBalance = (balance: number): keyof BalanceDistribution => {
+      if (balance <= 100000) return '0-100k';
+      if (balance <= 250000) return '100k-250k';
+      if (balance <= 500000) return '250k-500k';
+      return '500k+';
+    };
+
     assumableMortgages.forEach(mortgage => {
       const balance = Number(mortgage.currentBalance);
-      if (balance <= 100000) balanceDistribution['0-100k']++;
-      else if (balance <= 250000) balanceDistribution['100k-250k']++;
-      else if (balance <= 500000) balanceDistribution['250k-500k']++;
-      else balanceDistribution['500k+']++;
+      balanceDistribution[categorizeBalance(balance)]++;
     });
 
     // Calculate interest rate distribution
-    const interestRateRanges = {
+    type InterestRateRanges = {
+      '0-3%': number;
+      '3-4%': number;
+      '4-5%': number;
+      '5-6%': number;
+      '6%+': number;
+    };
+
+    const interestRateRanges: InterestRateRanges = {
       '0-3%': 0,
       '3-4%': 0,
       '4-5%': 0,
@@ -215,50 +281,94 @@ export async function GET() {
       '6%+': 0
     };
 
+    /**
+     * Categorize interest rates into predefined ranges
+     * @param {number} rate - Current interest rate
+     * @returns {keyof InterestRateRanges} Category label
+     */
+    const categorizeInterestRate = (rate: number): keyof InterestRateRanges => {
+      if (rate <= 3) return '0-3%';
+      if (rate <= 4) return '3-4%';
+      if (rate <= 5) return '4-5%';
+      if (rate <= 6) return '5-6%';
+      return '6%+';
+    };
+
     assumableMortgages.forEach(mortgage => {
       const rate = Number(mortgage.interestRate);
-      if (rate <= 3) interestRateRanges['0-3%']++;
-      else if (rate <= 4) interestRateRanges['3-4%']++;
-      else if (rate <= 5) interestRateRanges['4-5%']++;
-      else if (rate <= 6) interestRateRanges['5-6%']++;
-      else interestRateRanges['6%+']++;
+      interestRateRanges[categorizeInterestRate(rate)]++;
     });
 
     // Calculate days on market by type
-    const daysOnMarketByType = {
+    type DaysOnMarketByType = {
+      '0-30 days': number;
+      '30-60 days': number;
+      '60-90 days': number;
+      '90+ days': number;
+    };
+
+    const daysOnMarketByType: DaysOnMarketByType = {
       '0-30 days': 0,
       '30-60 days': 0,
       '60-90 days': 0,
       '90+ days': 0
     };
 
+    /**
+     * Categorize days on market into predefined ranges
+     * @param {number} days - Number of days on market
+     * @returns {keyof DaysOnMarketByType} Category label
+     */
+    const categorizeDaysOnMarket = (days: number): keyof DaysOnMarketByType => {
+      if (days <= 30) return '0-30 days';
+      if (days <= 60) return '30-60 days';
+      if (days <= 90) return '60-90 days';
+      return '90+ days';
+    };
+
     activeListings.forEach(listing => {
       const days = Math.floor((now.getTime() - listing.createdAt.getTime()) / (1000 * 60 * 60 * 24));
-      if (days <= 30) daysOnMarketByType['0-30 days']++;
-      else if (days <= 60) daysOnMarketByType['30-60 days']++;
-      else if (days <= 90) daysOnMarketByType['60-90 days']++;
-      else daysOnMarketByType['90+ days']++;
+      daysOnMarketByType[categorizeDaysOnMarket(days)]++;
     });
 
     // Calculate update frequency distribution
-    const updateFrequencyRanges = {
+    type UpdateFrequencyRanges = {
+      'Daily': number;
+      'Weekly': number;
+      'Monthly': number;
+      'Quarterly': number;
+    };
+
+    const updateFrequencyRanges: UpdateFrequencyRanges = {
       'Daily': 0,
       'Weekly': 0,
       'Monthly': 0,
       'Quarterly': 0
     };
 
+    /**
+     * Categorize update frequency into predefined ranges
+     * @param {number} frequency - Updates per day
+     * @returns {keyof UpdateFrequencyRanges} Category label
+     */
+    const categorizeUpdateFrequency = (frequency: number): keyof UpdateFrequencyRanges => {
+      if (frequency >= 1) return 'Daily';
+      if (frequency >= 0.25) return 'Weekly';
+      if (frequency >= 0.033) return 'Monthly';
+      return 'Quarterly';
+    };
+
     activeListings.forEach(listing => {
       const daysActive = Math.max(1, Math.floor((now.getTime() - listing.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
       const updates = Math.floor((now.getTime() - listing.updatedAt.getTime()) / (1000 * 60 * 60 * 24));
       const frequency = updates / daysActive;
-      
-      if (frequency >= 1) updateFrequencyRanges['Daily']++;
-      else if (frequency >= 0.25) updateFrequencyRanges['Weekly']++;
-      else if (frequency >= 0.033) updateFrequencyRanges['Monthly']++;
-      else updateFrequencyRanges['Quarterly']++;
+      updateFrequencyRanges[categorizeUpdateFrequency(frequency)]++;
     });
 
+    /**
+     * Compile all dashboard data into a structured response
+     * @returns {Object} Formatted dashboard data
+     */
     return NextResponse.json({
       data: {
         totalListings: totalActive,
@@ -294,7 +404,7 @@ export async function GET() {
             values: Object.values(interestRateRanges)
           }
         },
-        geographicData: [],
+        geographicData: [], // Placeholder for future implementation
         listingLifecycle: {
           statusDistribution: {
             labels: statusDistribution.map(s => s.status),
@@ -313,8 +423,17 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Dashboard data fetch error:', error);
+    
+    // More detailed error response
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const errorCode = error instanceof Error && 'code' in error ? error.code : 'UNKNOWN_ERROR';
+    
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard data' },
+      { 
+        error: 'Failed to fetch dashboard data',
+        details: errorMessage,
+        code: errorCode
+      },
       { status: 500 }
     );
   }
